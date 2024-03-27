@@ -36,8 +36,8 @@ class CameraSimulator(Node):
     def __init__(self, **kwargs):
         super().__init__("camera_simulator")
 
-        image_topic_ = self.declare_parameter("image_topic", "/image/image_raw").value
-        camera_info_topic_ = self.declare_parameter("camera_info_topic", "/image/camera_info").value
+        image_topic_ = self.declare_parameter("image_topic", "/image_raw").value
+        camera_info_topic_ = self.declare_parameter("camera_info_topic", "/camera_info").value
 
         self.frame_id_ = self.declare_parameter("frame_id", "camera").value
         self.camera_name_ = self.declare_parameter("camera_name", "narrow_stereo").value
@@ -50,6 +50,8 @@ class CameraSimulator(Node):
         self.br = CvBridge()
 
         self.type = kwargs["type"]
+
+        self.rate = kwargs["rate"]
 
         self.loop = kwargs["loop"]
 
@@ -87,8 +89,12 @@ class CameraSimulator(Node):
             except:
                 print("End of file")
 
-            video_fps = self.vc.get(cv2.CAP_PROP_FPS)
-            self.get_logger().info(f"Publishing image with {video_fps} fps")
+            if self.rate == -1:
+                video_fps = self.vc.get(cv2.CAP_PROP_FPS)
+
+            else:
+                video_fps = self.rate
+                self.get_logger().info(f"Publishing image with {video_fps} fps")
 
             self.timer = self.create_timer(1.0 / video_fps, self.image_callback)
         else:
@@ -107,7 +113,7 @@ class CameraSimulator(Node):
                 exit()
             elif not rval and self.loop:
                 self.vc.set(cv2.CAP_PROP_POS_MSEC, 0)
-                rval, image = self.vc.read()            
+                rval, image = self.vc.read()
         elif image_path:
             image = cv2.imread(image_path)
         else:
@@ -181,7 +187,9 @@ def main(args=None):
     parser.add_argument("--calibration_file", type=str, default="", help="path to video folder")
     parser.add_argument("--type", type=str, default="video", help='type of "image" or "video')
     parser.add_argument("--start", type=int, default=0, help="starting position")
+    parser.add_argument("--rate", type=int, default=-1, help="rate of publishing images")
     parser.add_argument('--loop', action='store_true', help='loop video after end')
+    parser.add_argument('--ros-args', action='store_true', help='none')
     parser.set_defaults(loop=False)
 
     extra_args = parser.parse_args()
@@ -189,8 +197,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     camera_simulator = CameraSimulator(
-        path=extra_args.path, type=extra_args.type, calibration_file=extra_args.calibration_file, start=extra_args.start,
-        loop=extra_args.loop
+        path=extra_args.path, type=extra_args.type, calibration_file=extra_args.calibration_file, start=extra_args.start, rate=extra_args.rate, loop=extra_args.loop
     )
 
     rclpy.spin(camera_simulator)
